@@ -1,0 +1,30 @@
+# Dependencies & build
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/.cache
+**/out
+
+# Python
+**/__pycache__
+**/.venv
+**/venv
+**/*.pyc
+**/*.pyo
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# IDE & OS
+.cursor
+.DS_Store
+*.log
+
+# VieNeu-TTS (large models/cache - uncomment if you want to exclude)
+# VieNeu-TTS/merged_models_cache
+# VieNeu-TTS/outputs
+# VieNeu-TTS/finetune

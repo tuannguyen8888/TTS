@@ -1,0 +1,31 @@
+# Dependencies & build outputs
+**/node_modules
+**/.next
+**/dist
+**/.turbo
+**/coverage
+**/.cache
+
+# Git & IDE
+.git
+.gitignore
+.cursor
+.cursorignore
+*.md
+!deploy/*.md
+
+# Python (runpod-wrapper, VieNeu-TTS)
+**/__pycache__
+**/.venv
+**/venv
+**/.env
+**/*.pyc
+
+# Misc
+*.log
+.DS_Store
+.env*
+!.env.example
+
+# Exclude other apps from context when building backend/dashboard
+VieNeu-TTS

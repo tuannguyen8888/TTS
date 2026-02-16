@@ -1,0 +1,32 @@
+openapi: 3.0.3
+info:
+  title: TTS SaaS API
+  version: 1.0.0
+paths:
+  /api/v1/tts/synthesize:
+    post:
+      summary: Tạo job synthesize TTS
+      tags: [tts]
+  /api/v1/tts/jobs/{jobId}:
+    get:
+      summary: Lấy trạng thái job
+      tags: [tts]
+  /api/v1/usage/summary:
+    get:
+      summary: Tổng hợp usage
+      tags: [usage]
+  /api/v1/usage/transactions:
+    get:
+      summary: Lịch sử giao dịch
+      tags: [usage]
+  /api/v1/billing/ledger:
+    get:
+      summary: Ledger billing theo tháng
+      tags: [billing]
+  /api/v1/api-keys:
+    post:
+      summary: Tạo API key
+      tags: [apikey]
+    delete:
+      summary: Revoke API key
+      tags: [apikey]

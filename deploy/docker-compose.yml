@@ -1,0 +1,72 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: tts_saas
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app-backend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.backend
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/tts_saas
+      REDIS_URL: redis://redis:6379
+      TYPEORM_SYNCHRONIZE: "true"
+      VPS_HMAC_SECRET: "dev-shared-secret"
+      RUNPOD_HMAC_SECRET: "dev-shared-secret"
+      JWT_ACCESS_SECRET: "dev-access-secret"
+      JWT_ACCESS_TTL: "15m"
+      JWT_REFRESH_TTL_DAYS: "30"
+      DASHBOARD_BASE_URL: "http://localhost:3001"
+      SMTP_HOST: ""
+      SMTP_PORT: "587"
+      SMTP_USER: ""
+      SMTP_PASS: ""
+      SMTP_SECURE: "false"
+      SMTP_FROM: "no-reply@tts.local"
+      RESET_PASSWORD_TTL_MINUTES: "30"
+      SUPER_ADMIN_EMAIL: "admin@vhealthcare.vn"
+      SUPER_ADMIN_PASSWORD: "CotMoc@2026"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  dashboard-web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.dashboard
+    ports:
+      - "3001:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+    depends_on:
+      - app-backend
+
+volumes:
+  postgres_data:
