@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { Between, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { UsageEvent } from './entities/usage-event.entity';
 
 @Injectable()
@@ -19,7 +19,14 @@ export class UsageService {
       charCount,
       status,
     });
-    return this.repo.save(ev);
+    await this.repo
+      .createQueryBuilder()
+      .insert()
+      .into(UsageEvent)
+      .values(ev)
+      .orIgnore()
+      .execute();
+    return this.repo.findOne({ where: { jobId } });
   }
 
   async getSummary(tenantId: string, from?: Date, to?: Date) {

@@ -1,0 +1,23 @@
+services:
+  postgres:
+    restart: unless-stopped
+
+  redis:
+    restart: unless-stopped
+
+  app-backend:
+    restart: unless-stopped
+    environment:
+      # Demo defaults (can still be overridden from .env / --env-file)
+      TYPEORM_SYNCHRONIZE: ${TYPEORM_SYNCHRONIZE:-true}
+      TTS_PROVIDER: ${TTS_PROVIDER:-runpod_serverless}
+      RUNPOD_SERVERLESS_BASE_URL: ${RUNPOD_SERVERLESS_BASE_URL:-https://api.runpod.ai/v2}
+      RUNPOD_SERVERLESS_TIMEOUT_MS: ${RUNPOD_SERVERLESS_TIMEOUT_MS:-180000}
+
+      # Base compose still requires these vars; keep demo-friendly fallbacks here too.
+      # Note: because base file uses ${VAR:?}, you should still define them in env file.
+      RUNPOD_HMAC_SECRET_CURRENT: ${RUNPOD_HMAC_SECRET_CURRENT:-dummy-runpod-hmac-for-demo}
+      VPS_HMAC_SECRET_CURRENT: ${VPS_HMAC_SECRET_CURRENT:-dummy-vps-hmac-for-demo}
+
+  dashboard-web:
+    restart: unless-stopped

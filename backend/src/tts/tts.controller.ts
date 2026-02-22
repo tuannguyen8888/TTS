@@ -43,6 +43,10 @@ export class TtsController {
       idempotencyKey: dto.idempotencyKey,
     });
 
+    if (job.status !== 'queued') {
+      return { job_id: job.id, status: job.status };
+    }
+
     const charCount = job.text.length;
     logJson({
       event: 'tts_job_created',
@@ -50,25 +54,80 @@ export class TtsController {
       job_id: job.id,
       tenant_id: job.tenantId,
     });
-    // Fire-and-forget: gọi Runpod async (Phase 2.2)
-    this.tts.callRunpodSynthesize(job, requestId).then((result) => {
-      if (result.audioBase64) {
-        this.tts.updateJobStatus(job.id, 'completed', {
-          audioUrl: `data:audio/wav;base64,${result.audioBase64}`,
+    await this.tts.updateJobStatus(job.id, 'processing');
+
+    // Fire-and-forget: gọi Runpod async với retry/backoff rõ ràng.
+    void this.tts
+      .processRunpodJob(job, requestId)
+      .then(async (result) => {
+        if (result.audioBase64) {
+          await this.tts.updateJobStatus(job.id, 'completed', {
+            audioUrl: `data:audio/wav;base64,${result.audioBase64}`,
+          });
+          await this.tts.recordUsageAndBilling(
+            job.id,
+            job.tenantId,
+            charCount,
+            'completed',
+          );
+          this.metrics.incSuccess();
+          return;
+        }
+
+        if (result.callbackSent) {
+          // Runpod đã callback về internal upload-audio; status sẽ được cập nhật tại InternalTtsController.
+          return;
+        }
+
+        const errorCode = result.error ?? 'RUNPOD_ERROR';
+        await this.tts.updateJobStatus(job.id, 'failed', {
+          errorCode,
+          errorMessage: errorCode,
         });
-        this.tts.recordUsageAndBilling(job.id, job.tenantId, charCount, 'completed');
-        this.metrics.incSuccess();
-      } else if (result.error && !result.callbackSent) {
-        this.tts.updateJobStatus(job.id, 'failed', {
-          errorCode: result.error,
-          errorMessage: result.error,
-        });
-        this.tts.recordUsageAndBilling(job.id, job.tenantId, charCount, 'failed');
+        await this.tts.recordUsageAndBilling(
+          job.id,
+          job.tenantId,
+          charCount,
+          'failed',
+        );
         this.metrics.incError();
-      }
-      // Nếu callback_sent: Runpod đã POST upload-audio, job đã được cập nhật ở InternalTtsController
-    });
-    this.tts.updateJobStatus(job.id, 'processing');
+      })
+      .catch(async (error: unknown) => {
+        const message =
+          error instanceof Error ? error.message : 'RUNPOD_PROCESSING_ERROR';
+        try {
+          logJson({
+            event: 'runpod_processing_crashed',
+            request_id: requestId,
+            job_id: job.id,
+            tenant_id: job.tenantId,
+            error_code: message,
+          });
+          await this.tts.updateJobStatus(job.id, 'failed', {
+            errorCode: 'RUNPOD_PROCESSING_ERROR',
+            errorMessage: message,
+          });
+          await this.tts.recordUsageAndBilling(
+            job.id,
+            job.tenantId,
+            charCount,
+            'failed',
+          );
+          this.metrics.incError();
+        } catch (persistError) {
+          const persistMessage =
+            persistError instanceof Error
+              ? persistError.message
+              : 'RUNPOD_ERROR_PERSIST_FAILED';
+          logJson({
+            event: 'runpod_failure_persist_crashed',
+            request_id: requestId,
+            job_id: job.id,
+            tenant_id: job.tenantId,
+            error_code: persistMessage,
+          });
+        }
+      });
 
     return { job_id: job.id, status: 'processing' };
   }

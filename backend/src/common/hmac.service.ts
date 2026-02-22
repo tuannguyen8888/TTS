@@ -1,4 +1,4 @@
-import { createHash, createHmac } from 'crypto';
+import { createHash, createHmac, timingSafeEqual } from 'crypto';
 
 const ALGORITHM = 'sha256';
 
@@ -8,7 +8,10 @@ export function signHmac(secret: string, payload: string): string {
 
 export function verifyHmac(secret: string, payload: string, signature: string): boolean {
   const expected = signHmac(secret, payload);
-  return signature === expected && signature.length > 0;
+  if (!signature || signature.length !== expected.length) {
+    return false;
+  }
+  return timingSafeEqual(Buffer.from(signature), Buffer.from(expected));
 }
 
 /**

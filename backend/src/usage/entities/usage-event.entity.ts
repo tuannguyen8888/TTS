@@ -1,6 +1,7 @@
-import { Column, CreateDateColumn, Entity, PrimaryColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryColumn } from 'typeorm';
 
 @Entity('usage_events')
+@Index(['jobId'], { unique: true })
 export class UsageEvent {
   @PrimaryColumn('uuid')
   id!: string;

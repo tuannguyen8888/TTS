@@ -20,9 +20,7 @@ import { AdminModule } from './admin/admin.module';
       type: 'postgres',
       url: process.env.DATABASE_URL,
       autoLoadEntities: true,
-      synchronize:
-        process.env.TYPEORM_SYNCHRONIZE === 'true' ||
-        process.env.NODE_ENV !== 'production',
+      synchronize: process.env.TYPEORM_SYNCHRONIZE === 'true',
     }),
     HealthModule,
     AuthModule,

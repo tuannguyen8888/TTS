@@ -1,0 +1,55 @@
+name: Deploy TTS Serverless (Runpod via GitHub Release)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "runpod-serverless/**"
+      - ".github/workflows/deploy-tts-serverless-runpod.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  validate-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Validate worker syntax
+        run: python -m py_compile runpod-serverless/handler.py
+
+      - name: Generate release metadata
+        id: meta
+        run: |
+          SHORT_SHA="${GITHUB_SHA::7}"
+          TAG="runpod-tts-${GITHUB_RUN_NUMBER}-${SHORT_SHA}"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "title=Runpod TTS deploy ${TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Create Git tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag "${{ steps.meta.outputs.tag }}"
+          git push origin "${{ steps.meta.outputs.tag }}"
+
+      - name: Create GitHub release (triggers Runpod GitHub endpoint update)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.meta.outputs.tag }}
+          name: ${{ steps.meta.outputs.title }}
+          generate_release_notes: true
+          prerelease: true
+          body: |
+            Auto-created by GitHub Actions to trigger Runpod Serverless endpoint rebuild/update via GitHub integration.
+
+            Dockerfile path (Runpod endpoint config): `runpod-serverless/Dockerfile`

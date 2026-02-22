@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  InternalServerErrorException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -297,6 +298,18 @@ export class AuthService {
     return createHash('sha256').update(raw).digest('hex');
   }
 
+  private getJwtAccessSecret(): string {
+    const secret =
+      this.config.get<string>('JWT_ACCESS_SECRET') ??
+      this.config.get<string>('JWT_SECRET');
+    if (!secret || secret.trim().length === 0) {
+      throw new InternalServerErrorException({
+        error: 'JWT_SECRET_NOT_CONFIGURED',
+      });
+    }
+    return secret;
+  }
+
   private async issueAuthTokens(params: {
     userId: string;
     email: string;
@@ -313,10 +326,7 @@ export class AuthService {
     };
     const accessTtl = this.config.get<string>('JWT_ACCESS_TTL') ?? '15m';
     const accessToken = await this.jwt.signAsync(payload, {
-      secret:
-        this.config.get<string>('JWT_ACCESS_SECRET') ??
-        this.config.get<string>('JWT_SECRET') ??
-        'dev-access-secret',
+      secret: this.getJwtAccessSecret(),
       expiresIn: accessTtl as any,
     });
 
@@ -346,4 +356,3 @@ export class AuthService {
     };
   }
 }
-

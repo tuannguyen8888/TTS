@@ -24,7 +24,14 @@ export class BillingService {
       amount,
       month,
     });
-    return this.repo.save(entry);
+    await this.repo
+      .createQueryBuilder()
+      .insert()
+      .into(BillingLedger)
+      .values(entry)
+      .orIgnore()
+      .execute();
+    return this.repo.findOne({ where: { jobId } });
   }
 
   async getLedger(tenantId: string, month?: string) {

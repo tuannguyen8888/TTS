@@ -1,6 +1,7 @@
-import { Column, CreateDateColumn, Entity, PrimaryColumn } from 'typeorm';
+import { Column, CreateDateColumn, Entity, Index, PrimaryColumn } from 'typeorm';
 
 @Entity('billing_ledger')
+@Index(['jobId'], { unique: true })
 export class BillingLedger {
   @PrimaryColumn('uuid')
   id!: string;

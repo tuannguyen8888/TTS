@@ -2,11 +2,11 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: tts_saas
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+    expose:
+      - "5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -17,8 +17,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"
+    expose:
+      - "6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -32,25 +32,36 @@ services:
     ports:
       - "3000:3000"
     environment:
-      PORT: 3000
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/tts_saas
-      REDIS_URL: redis://redis:6379
-      TYPEORM_SYNCHRONIZE: "true"
-      VPS_HMAC_SECRET: "dev-shared-secret"
-      RUNPOD_HMAC_SECRET: "dev-shared-secret"
-      JWT_ACCESS_SECRET: "dev-access-secret"
-      JWT_ACCESS_TTL: "15m"
-      JWT_REFRESH_TTL_DAYS: "30"
-      DASHBOARD_BASE_URL: "http://localhost:3001"
-      SMTP_HOST: ""
-      SMTP_PORT: "587"
-      SMTP_USER: ""
-      SMTP_PASS: ""
-      SMTP_SECURE: "false"
-      SMTP_FROM: "no-reply@tts.local"
-      RESET_PASSWORD_TTL_MINUTES: "30"
-      SUPER_ADMIN_EMAIL: "admin@vhealthcare.vn"
-      SUPER_ADMIN_PASSWORD: "CotMoc@2026"
+      PORT: ${BACKEND_PORT:-3000}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
+      TYPEORM_SYNCHRONIZE: ${TYPEORM_SYNCHRONIZE:-false}
+      VPS_HMAC_SECRET_CURRENT: ${VPS_HMAC_SECRET_CURRENT:?VPS_HMAC_SECRET_CURRENT is required}
+      VPS_HMAC_SECRET_PREVIOUS: ${VPS_HMAC_SECRET_PREVIOUS:-}
+      RUNPOD_HMAC_SECRET_CURRENT: ${RUNPOD_HMAC_SECRET_CURRENT:?RUNPOD_HMAC_SECRET_CURRENT is required}
+      RUNPOD_HMAC_SECRET_PREVIOUS: ${RUNPOD_HMAC_SECRET_PREVIOUS:-}
+      RUNPOD_TTS_BASE_URL: ${RUNPOD_TTS_BASE_URL:-}
+      VPS_CALLBACK_BASE_URL: ${VPS_CALLBACK_BASE_URL:-}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL_DAYS: ${JWT_REFRESH_TTL_DAYS:-30}
+      RUNPOD_RETRY_ATTEMPTS: ${RUNPOD_RETRY_ATTEMPTS:-3}
+      RUNPOD_RETRY_BASE_DELAY_MS: ${RUNPOD_RETRY_BASE_DELAY_MS:-1000}
+      TTS_PROVIDER: ${TTS_PROVIDER:-runpod_wrapper}
+      RUNPOD_API_KEY: ${RUNPOD_API_KEY:-}
+      RUNPOD_SERVERLESS_ENDPOINT_ID: ${RUNPOD_SERVERLESS_ENDPOINT_ID:-}
+      RUNPOD_SERVERLESS_BASE_URL: ${RUNPOD_SERVERLESS_BASE_URL:-https://api.runpod.ai/v2}
+      RUNPOD_SERVERLESS_TIMEOUT_MS: ${RUNPOD_SERVERLESS_TIMEOUT_MS:-180000}
+      DASHBOARD_BASE_URL: ${DASHBOARD_BASE_URL:?DASHBOARD_BASE_URL is required}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_FROM: ${SMTP_FROM:-}
+      RESET_PASSWORD_TTL_MINUTES: ${RESET_PASSWORD_TTL_MINUTES:-30}
+      SUPER_ADMIN_EMAIL: ${SUPER_ADMIN_EMAIL:-}
+      SUPER_ADMIN_PASSWORD: ${SUPER_ADMIN_PASSWORD:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -64,7 +75,7 @@ services:
     ports:
       - "3001:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:3000/api
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
     depends_on:
       - app-backend
 
