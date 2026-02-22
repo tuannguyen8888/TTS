@@ -8,13 +8,12 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/opt/venv/bin:$PATH \
     VIENEU_TTS_PATH=/workspace/VieNeu-TTS
 
-# System deps for VieNeu-TTS and build wheels
+# System deps for VieNeu-TTS and Python runtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    software-properties-common \
-    && add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get update && apt-get install -y --no-install-recommends \
-    python3.12 \
-    python3.12-dev \
+    python3 \
+    python3-dev \
+    python3-pip \
+    python3-venv \
     build-essential \
     git \
     curl \
@@ -23,16 +22,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libespeak-ng1 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1 \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3.12 1
-
-# Install uv
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+RUN ln -sf /usr/bin/python3 /usr/bin/python \
+    && python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir --upgrade pip uv
 
 WORKDIR /workspace
 
-# Copy serverless handler assets first (small layer)
-COPY . /workspace/runpod-serverless
+WORKDIR /workspace/runpod-serverless
+COPY . .
 
 # Clone VieNeu-TTS source used by the handler. Pin branch/tag via build arg if needed.
 ARG VIENEU_TTS_GIT_URL=https://github.com/pnnbao97/VieNeu-TTS.git
@@ -44,7 +41,7 @@ WORKDIR /workspace/VieNeu-TTS
 RUN uv sync --no-dev --group gpu
 
 # Install Runpod SDK / worker-only deps into same venv
-WORKDIR /workspace
-RUN uv pip install --python /opt/venv/bin/python -r /workspace/runpod-serverless/requirements.txt
+WORKDIR /workspace/runpod-serverless
+RUN uv pip install --python /opt/venv/bin/python -r requirements.txt
 
-CMD ["python", "/workspace/runpod-serverless/handler.py"]
+CMD ["python", "handler.py"]
