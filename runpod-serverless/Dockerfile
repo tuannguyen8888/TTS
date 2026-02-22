@@ -28,8 +28,9 @@ RUN ln -sf /usr/bin/python3 /usr/bin/python \
 
 WORKDIR /workspace
 
+# Runpod GitHub Integration is configured with repository root build context.
+COPY runpod-serverless/ /workspace/runpod-serverless/
 WORKDIR /workspace/runpod-serverless
-COPY . .
 
 # Clone VieNeu-TTS source used by the handler. Pin branch/tag via build arg if needed.
 ARG VIENEU_TTS_GIT_URL=https://github.com/pnnbao97/VieNeu-TTS.git
