@@ -24,6 +24,7 @@ jobs:
 
           grep -q '"status":"ok"' /tmp/backend_health.json
           grep -Eq '^HTTP/2 200|^HTTP/1.1 200' /tmp/dashboard_head.txt
+          grep -Eiq '^x-powered-by: *Next\.js' /tmp/dashboard_head.txt
 
           echo "Backend health:"
           cat /tmp/backend_health.json

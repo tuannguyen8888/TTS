@@ -42,7 +42,7 @@ jobs:
           fi
 
           set +e
-          timeout "${DEPLOY_TIMEOUT_MINUTES}m" ssh -tt \
+          timeout 3m ssh -tt \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -p "$PORT" \
@@ -77,8 +77,13 @@ jobs:
           git checkout "\$BRANCH"
           git pull --ff-only origin "\$BRANCH"
           chmod +x "\$REPO_PATH/deploy/runpod-cpu-pod/"*.sh
-          "\$REPO_PATH/deploy/runpod-cpu-pod/bootstrap-native.sh" "\$REPO_PATH"
-          "\$REPO_PATH/deploy/runpod-cpu-pod/deploy-native.sh" "\$REPO_PATH" "\$BRANCH"
+          nohup bash -lc "
+            set -euo pipefail
+            '\$REPO_PATH/deploy/runpod-cpu-pod/bootstrap-native.sh' '\$REPO_PATH'
+            '\$REPO_PATH/deploy/runpod-cpu-pod/deploy-native.sh' '\$REPO_PATH' '\$BRANCH'
+          " > "\$REPO_PATH/deploy/.runpod-ci-deploy.log" 2>&1 &
+          echo \$! > "\$REPO_PATH/deploy/.runpod-ci-deploy.pid"
+          echo "Started background deploy pid \$(cat "\$REPO_PATH/deploy/.runpod-ci-deploy.pid")"
           exit
           EOF
           SSH_RC=$?
@@ -88,11 +93,31 @@ jobs:
             exit "$SSH_RC"
           fi
           if [ "$SSH_RC" -eq 124 ]; then
-            echo "SSH session timed out after ${DEPLOY_TIMEOUT_MINUTES}m deploy window. Verifying services via HTTP..."
+            echo "SSH session timed out starting detached deploy. Continuing with HTTP polling..."
           fi
 
-          curl -fsS "https://${POD_ID}-8001.proxy.runpod.net/healthz" >/tmp/backend_health.json
-          curl -fsSI "https://${POD_ID}-8081.proxy.runpod.net/" >/tmp/dashboard_head.txt
-          grep -q '"status":"ok"' /tmp/backend_health.json
-          grep -Eq '^HTTP/2 200|^HTTP/1.1 200' /tmp/dashboard_head.txt
+          deadline=$(( $(date +%s) + DEPLOY_TIMEOUT_MINUTES * 60 ))
+          while true; do
+            backend_ok=0
+            dashboard_ok=0
+            curl -fsS "https://${POD_ID}-8001.proxy.runpod.net/healthz" >/tmp/backend_health.json && grep -q '"status":"ok"' /tmp/backend_health.json && backend_ok=1 || true
+            curl -fsSI "https://${POD_ID}-8081.proxy.runpod.net/" >/tmp/dashboard_head.txt && \
+              grep -Eq '^HTTP/2 200|^HTTP/1.1 200' /tmp/dashboard_head.txt && \
+              grep -Eiq '^x-powered-by: *Next\\.js' /tmp/dashboard_head.txt && \
+              dashboard_ok=1 || true
+            if [ "$backend_ok" -eq 1 ] && [ "$dashboard_ok" -eq 1 ]; then
+              break
+            fi
+            if [ "$(date +%s)" -ge "$deadline" ]; then
+              echo "Timed out waiting for public endpoints to become healthy."
+              ssh -tt \
+                -o StrictHostKeyChecking=no \
+                -o UserKnownHostsFile=/dev/null \
+                -p "$PORT" \
+                "$USER@$HOST" "tail -n 200 '$REPO_PATH/deploy/.runpod-ci-deploy.log' || true" || true
+              exit 1
+            fi
+            sleep 15
+          done
+
           echo "Verified backend and dashboard public endpoints."
