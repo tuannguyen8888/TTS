@@ -14,56 +14,68 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.2.0
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
-          port: ${{ secrets.DEPLOY_PORT }}
-          request_pty: true
-          script_stop: true
-          command_timeout: 30m
-          script: |
-            set -e
-            REPO_PATH="${{ secrets.DEPLOY_REPO_PATH }}"
-            BRANCH="${{ vars.DEPLOY_BRANCH }}"
-            if [ -z "$BRANCH" ]; then BRANCH="main"; fi
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_PRIVATE_KEY }}
 
-            # Runpod CPU Pods are containers, so Docker-in-Docker needs a compatible dockerd config.
-            if ! command -v docker >/dev/null 2>&1; then
+      - name: Deploy over SSH (Runpod gateway)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          HOST="${{ secrets.DEPLOY_HOST }}"
+          PORT="${{ secrets.DEPLOY_PORT }}"
+          USER="${{ secrets.DEPLOY_USER }}"
+          REPO_PATH="${{ secrets.DEPLOY_REPO_PATH }}"
+          BRANCH="${{ vars.DEPLOY_BRANCH }}"
+          if [ -z "$BRANCH" ]; then BRANCH="main"; fi
+
+          ssh -tt \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            -p "$PORT" \
+            "$USER@$HOST" <<EOF
+          set -e
+
+          REPO_PATH="$REPO_PATH"
+          BRANCH="$BRANCH"
+
+          # Runpod CPU Pods are containers, so Docker-in-Docker needs a compatible dockerd config.
+          if ! command -v docker >/dev/null 2>&1; then
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -y
+            apt-get install -y docker.io
+          fi
+
+          if ! docker info >/dev/null 2>&1; then
+            nohup dockerd --iptables=false --bridge=none --storage-driver=vfs >/tmp/dockerd.log 2>&1 &
+            for i in \$(seq 1 20); do
+              if docker info >/dev/null 2>&1; then break; fi
+              sleep 1
+            done
+            docker info >/dev/null 2>&1 || (echo "dockerd failed to start" && tail -n 120 /tmp/dockerd.log && exit 1)
+          fi
+
+          if docker compose version >/dev/null 2>&1; then
+            COMPOSE_CMD="docker compose"
+          else
+            if ! command -v docker-compose >/dev/null 2>&1; then
               export DEBIAN_FRONTEND=noninteractive
               apt-get update -y
-              apt-get install -y docker.io
+              apt-get install -y docker-compose
             fi
+            COMPOSE_CMD="docker-compose"
+          fi
 
-            if ! docker info >/dev/null 2>&1; then
-              nohup dockerd --iptables=false --bridge=none --storage-driver=vfs >/tmp/dockerd.log 2>&1 &
-              for i in $(seq 1 20); do
-                if docker info >/dev/null 2>&1; then break; fi
-                sleep 1
-              done
-              docker info >/dev/null 2>&1 || (echo "dockerd failed to start" && tail -n 120 /tmp/dockerd.log && exit 1)
-            fi
+          cd "\$REPO_PATH"
+          git fetch origin "\$BRANCH"
+          git checkout "\$BRANCH"
+          git pull --ff-only origin "\$BRANCH"
 
-            if docker compose version >/dev/null 2>&1; then
-              COMPOSE_CMD="docker compose"
-            else
-              if ! command -v docker-compose >/dev/null 2>&1; then
-                export DEBIAN_FRONTEND=noninteractive
-                apt-get update -y
-                apt-get install -y docker-compose
-              fi
-              COMPOSE_CMD="docker-compose"
-            fi
+          cd deploy
+          test -f .env || (echo "Missing deploy/.env on server" && exit 1)
 
-            cd "$REPO_PATH"
-            git fetch origin "$BRANCH"
-            git checkout "$BRANCH"
-            git pull --ff-only origin "$BRANCH"
-
-            cd deploy
-            test -f .env || (echo "Missing deploy/.env on server" && exit 1)
-
-            $COMPOSE_CMD -f docker-compose.yml -f docker-compose.demo.yml up -d --build --remove-orphans
-            docker image prune -f
+          \$COMPOSE_CMD -f docker-compose.yml -f docker-compose.demo.yml up -d --build --remove-orphans
+          docker image prune -f
+          EOF
