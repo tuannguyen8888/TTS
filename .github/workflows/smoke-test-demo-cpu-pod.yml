@@ -1,0 +1,32 @@
+name: Smoke Test Demo CPU Pod
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: ["Deploy Demo CPU Pod (Backend + Dashboard)"]
+    types: [completed]
+
+jobs:
+  smoke:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Smoke test backend + dashboard public endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          USER="${{ secrets.DEPLOY_USER }}"
+          POD_ID="${USER%%-*}"
+
+          curl -fsS "https://${POD_ID}-8001.proxy.runpod.net/healthz" >/tmp/backend_health.json
+          curl -fsSI "https://${POD_ID}-8081.proxy.runpod.net/" >/tmp/dashboard_head.txt
+
+          grep -q '"status":"ok"' /tmp/backend_health.json
+          grep -Eq '^HTTP/2 200|^HTTP/1.1 200' /tmp/dashboard_head.txt
+
+          echo "Backend health:"
+          cat /tmp/backend_health.json
+          echo
+          echo "Dashboard HEAD:"
+          sed -n '1,10p' /tmp/dashboard_head.txt

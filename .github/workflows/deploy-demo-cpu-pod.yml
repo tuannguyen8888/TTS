@@ -21,6 +21,8 @@ jobs:
 
       - name: Deploy over SSH (Runpod gateway)
         shell: bash
+        env:
+          DEPLOY_ENV_FILE: ${{ secrets.DEPLOY_ENV_FILE }}
         run: |
           set -euo pipefail
 
@@ -28,9 +30,14 @@ jobs:
           PORT="${{ secrets.DEPLOY_PORT }}"
           USER="${{ secrets.DEPLOY_USER }}"
           REPO_PATH="${{ secrets.DEPLOY_REPO_PATH }}"
+          REPO_GIT_URL="https://github.com/${{ github.repository }}.git"
           BRANCH="${{ vars.DEPLOY_BRANCH }}"
           if [ -z "$BRANCH" ]; then BRANCH="main"; fi
           POD_ID="${USER%%-*}"
+          DEPLOY_ENV_FILE_B64=""
+          if [ -n "${DEPLOY_ENV_FILE:-}" ]; then
+            DEPLOY_ENV_FILE_B64="$(printf '%s' "$DEPLOY_ENV_FILE" | base64 -w0)"
+          fi
 
           set +e
           timeout 25m ssh -tt \
@@ -41,8 +48,28 @@ jobs:
           set -e
 
           REPO_PATH="$REPO_PATH"
+          REPO_GIT_URL="$REPO_GIT_URL"
           BRANCH="$BRANCH"
-          test -f "\$REPO_PATH/deploy/.env" || (echo "Missing deploy/.env on server" && exit 1)
+          POD_ID="$POD_ID"
+          DEPLOY_ENV_FILE_B64="$DEPLOY_ENV_FILE_B64"
+
+          mkdir -p "\$(dirname "\$REPO_PATH")"
+          if [ ! -d "\$REPO_PATH/.git" ]; then
+            git clone "\$REPO_GIT_URL" "\$REPO_PATH"
+          fi
+
+          if [ ! -f "\$REPO_PATH/deploy/.env" ]; then
+            if [ -z "\$DEPLOY_ENV_FILE_B64" ]; then
+              echo "Missing deploy/.env on server and DEPLOY_ENV_FILE secret is not set"
+              exit 1
+            fi
+            mkdir -p "\$REPO_PATH/deploy"
+            printf '%s' "\$DEPLOY_ENV_FILE_B64" | base64 -d > "\$REPO_PATH/deploy/.env"
+          fi
+
+          sed -i "s#^DASHBOARD_BASE_URL=.*#DASHBOARD_BASE_URL=https://\${POD_ID}-8081.proxy.runpod.net#" "\$REPO_PATH/deploy/.env"
+          sed -i "s#^NEXT_PUBLIC_API_URL=.*#NEXT_PUBLIC_API_URL=https://\${POD_ID}-8001.proxy.runpod.net/api#" "\$REPO_PATH/deploy/.env"
+
           cd "\$REPO_PATH"
           git fetch origin "\$BRANCH"
           git checkout "\$BRANCH"
