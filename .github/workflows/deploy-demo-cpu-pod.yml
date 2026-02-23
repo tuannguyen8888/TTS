@@ -34,13 +34,15 @@ jobs:
           BRANCH="${{ vars.DEPLOY_BRANCH }}"
           if [ -z "$BRANCH" ]; then BRANCH="main"; fi
           POD_ID="${USER%%-*}"
+          DEPLOY_TIMEOUT_MINUTES="${{ vars.DEPLOY_TIMEOUT_MINUTES }}"
+          if [ -z "$DEPLOY_TIMEOUT_MINUTES" ]; then DEPLOY_TIMEOUT_MINUTES="12"; fi
           DEPLOY_ENV_FILE_B64=""
           if [ -n "${DEPLOY_ENV_FILE:-}" ]; then
             DEPLOY_ENV_FILE_B64="$(printf '%s' "$DEPLOY_ENV_FILE" | base64 -w0)"
           fi
 
           set +e
-          timeout 25m ssh -tt \
+          timeout "${DEPLOY_TIMEOUT_MINUTES}m" ssh -tt \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -p "$PORT" \
@@ -86,7 +88,7 @@ jobs:
             exit "$SSH_RC"
           fi
           if [ "$SSH_RC" -eq 124 ]; then
-            echo "SSH session timed out after deploy window. Verifying services via HTTP..."
+            echo "SSH session timed out after ${DEPLOY_TIMEOUT_MINUTES}m deploy window. Verifying services via HTTP..."
           fi
 
           curl -fsS "https://${POD_ID}-8001.proxy.runpod.net/healthz" >/tmp/backend_health.json
