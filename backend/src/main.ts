@@ -17,6 +17,8 @@ async function bootstrap() {
   );
   http.use(requestContextMiddleware);
   app.useGlobalPipes(new ValidationPipe({ whitelist: true }));
+  // Demo mode: dashboard and API are served from different origins (Runpod proxy ports).
+  app.enableCors({ origin: true });
   app.setGlobalPrefix('api', { exclude: ['healthz'] });
 
   const config = new DocumentBuilder()
