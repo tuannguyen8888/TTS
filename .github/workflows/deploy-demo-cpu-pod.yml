@@ -42,7 +42,7 @@ jobs:
           fi
 
           set +e
-          timeout 3m ssh -tt \
+          timeout -k 15s 3m ssh -tt \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -p "$PORT" \
