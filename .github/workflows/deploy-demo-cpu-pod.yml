@@ -30,8 +30,10 @@ jobs:
           REPO_PATH="${{ secrets.DEPLOY_REPO_PATH }}"
           BRANCH="${{ vars.DEPLOY_BRANCH }}"
           if [ -z "$BRANCH" ]; then BRANCH="main"; fi
+          POD_ID="${USER%%-*}"
 
-          ssh -tt \
+          set +e
+          timeout 25m ssh -tt \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
             -p "$PORT" \
@@ -49,5 +51,19 @@ jobs:
           "\$REPO_PATH/deploy/runpod-cpu-pod/bootstrap-native.sh" "\$REPO_PATH"
           "\$REPO_PATH/deploy/runpod-cpu-pod/deploy-native.sh" "\$REPO_PATH" "\$BRANCH"
           exit
-          exit
           EOF
+          SSH_RC=$?
+          set -e
+          if [ "$SSH_RC" -ne 0 ] && [ "$SSH_RC" -ne 124 ]; then
+            echo "SSH deploy failed with exit code $SSH_RC"
+            exit "$SSH_RC"
+          fi
+          if [ "$SSH_RC" -eq 124 ]; then
+            echo "SSH session timed out after deploy window. Verifying services via HTTP..."
+          fi
+
+          curl -fsS "https://${POD_ID}-8001.proxy.runpod.net/healthz" >/tmp/backend_health.json
+          curl -fsSI "https://${POD_ID}-8081.proxy.runpod.net/" >/tmp/dashboard_head.txt
+          grep -q '"status":"ok"' /tmp/backend_health.json
+          grep -Eq '^HTTP/2 200|^HTTP/1.1 200' /tmp/dashboard_head.txt
+          echo "Verified backend and dashboard public endpoints."
