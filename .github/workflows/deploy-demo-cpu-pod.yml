@@ -40,42 +40,8 @@ jobs:
 
           REPO_PATH="$REPO_PATH"
           BRANCH="$BRANCH"
-
-          # Runpod CPU Pods are containers, so Docker-in-Docker needs a compatible dockerd config.
-          if ! command -v docker >/dev/null 2>&1; then
-            export DEBIAN_FRONTEND=noninteractive
-            apt-get update -y
-            apt-get install -y docker.io
-          fi
-
-          if ! docker info >/dev/null 2>&1; then
-            nohup dockerd --iptables=false --bridge=none --storage-driver=vfs >/tmp/dockerd.log 2>&1 &
-            for i in \$(seq 1 20); do
-              if docker info >/dev/null 2>&1; then break; fi
-              sleep 1
-            done
-            docker info >/dev/null 2>&1 || (echo "dockerd failed to start" && tail -n 120 /tmp/dockerd.log && exit 1)
-          fi
-
-          if docker compose version >/dev/null 2>&1; then
-            COMPOSE_CMD="docker compose"
-          else
-            if ! command -v docker-compose >/dev/null 2>&1; then
-              export DEBIAN_FRONTEND=noninteractive
-              apt-get update -y
-              apt-get install -y docker-compose
-            fi
-            COMPOSE_CMD="docker-compose"
-          fi
-
-          cd "\$REPO_PATH"
-          git fetch origin "\$BRANCH"
-          git checkout "\$BRANCH"
-          git pull --ff-only origin "\$BRANCH"
-
-          cd deploy
-          test -f .env || (echo "Missing deploy/.env on server" && exit 1)
-
-          \$COMPOSE_CMD -f docker-compose.yml -f docker-compose.demo.yml -f docker-compose.runpod-cpu-pod.yml up -d --build --remove-orphans
-          docker image prune -f
+          test -f "\$REPO_PATH/deploy/.env" || (echo "Missing deploy/.env on server" && exit 1)
+          chmod +x "\$REPO_PATH/deploy/runpod-cpu-pod/"*.sh
+          "\$REPO_PATH/deploy/runpod-cpu-pod/bootstrap-native.sh" "\$REPO_PATH"
+          "\$REPO_PATH/deploy/runpod-cpu-pod/deploy-native.sh" "\$REPO_PATH" "\$BRANCH"
           EOF
