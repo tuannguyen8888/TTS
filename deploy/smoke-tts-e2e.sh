@@ -70,7 +70,7 @@ try:
     data = json.load(sys.stdin)
 except Exception:
     print("")
-    raise
+    raise SystemExit(0)
 value = data
 for part in key.split("."):
     if not isinstance(value, dict):
@@ -87,14 +87,19 @@ else:
 }
 
 build_payload() {
-  python3 - <<PY
+  TEXT_ENV="$TEXT" \
+  REQUEST_IDEMPOTENCY_KEY_ENV="$REQUEST_IDEMPOTENCY_KEY" \
+  VOICE_ID_ENV="$VOICE_ID" \
+  MODEL_ENV="$MODEL" \
+  python3 - <<'PY'
 import json
+import os
 payload = {
-  "text": ${TEXT@Q},
-  "idempotencyKey": ${REQUEST_IDEMPOTENCY_KEY@Q},
+  "text": os.environ["TEXT_ENV"],
+  "idempotencyKey": os.environ["REQUEST_IDEMPOTENCY_KEY_ENV"],
 }
-voice = ${VOICE_ID@Q}
-model = ${MODEL@Q}
+voice = os.environ.get("VOICE_ID_ENV", "")
+model = os.environ.get("MODEL_ENV", "")
 if voice:
     payload["voiceId"] = voice
 if model:
@@ -127,8 +132,18 @@ while true; do
     exit 1
   fi
 
-  job_json="$(api_call GET "$BASE_URL/api/v1/tts/jobs/$job_id")"
+  if ! job_json="$(api_call GET "$BASE_URL/api/v1/tts/jobs/$job_id" 2>/tmp/tts-smoke-poll.err)"; then
+    echo "[$elapsed s] poll lỗi tạm thời, retry..." >&2
+    cat /tmp/tts-smoke-poll.err >&2 || true
+    sleep "$POLL_INTERVAL_SECONDS"
+    continue
+  fi
   status="$(printf '%s' "$job_json" | json_get "status")"
+  if [[ -z "$status" ]]; then
+    echo "[$elapsed s] poll trả response không phải JSON hợp lệ, retry..." >&2
+    sleep "$POLL_INTERVAL_SECONDS"
+    continue
+  fi
   echo "[$elapsed s] status=$status"
 
   if [[ "$status" == "completed" ]]; then
