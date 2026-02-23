@@ -23,6 +23,8 @@ jobs:
         shell: bash
         env:
           DEPLOY_ENV_FILE: ${{ secrets.DEPLOY_ENV_FILE }}
+          PUBLIC_DASHBOARD_URL: ${{ vars.PUBLIC_DASHBOARD_URL }}
+          PUBLIC_API_URL: ${{ vars.PUBLIC_API_URL }}
         run: |
           set -euo pipefail
 
@@ -36,6 +38,14 @@ jobs:
           POD_ID="${USER%%-*}"
           DEPLOY_TIMEOUT_MINUTES="${{ vars.DEPLOY_TIMEOUT_MINUTES }}"
           if [ -z "$DEPLOY_TIMEOUT_MINUTES" ]; then DEPLOY_TIMEOUT_MINUTES="12"; fi
+          DESIRED_DASHBOARD_URL="${PUBLIC_DASHBOARD_URL:-}"
+          if [ -z "$DESIRED_DASHBOARD_URL" ]; then
+            DESIRED_DASHBOARD_URL="https://${POD_ID}-8081.proxy.runpod.net"
+          fi
+          DESIRED_API_URL="${PUBLIC_API_URL:-}"
+          if [ -z "$DESIRED_API_URL" ]; then
+            DESIRED_API_URL="https://${POD_ID}-8001.proxy.runpod.net/api"
+          fi
           DEPLOY_ENV_FILE_B64=""
           if [ -n "${DEPLOY_ENV_FILE:-}" ]; then
             DEPLOY_ENV_FILE_B64="$(printf '%s' "$DEPLOY_ENV_FILE" | base64 -w0)"
@@ -54,6 +64,8 @@ jobs:
           BRANCH="$BRANCH"
           POD_ID="$POD_ID"
           DEPLOY_ENV_FILE_B64="$DEPLOY_ENV_FILE_B64"
+          DESIRED_DASHBOARD_URL="$DESIRED_DASHBOARD_URL"
+          DESIRED_API_URL="$DESIRED_API_URL"
 
           mkdir -p "\$(dirname "\$REPO_PATH")"
           if [ ! -d "\$REPO_PATH/.git" ]; then
@@ -69,8 +81,8 @@ jobs:
             printf '%s' "\$DEPLOY_ENV_FILE_B64" | base64 -d > "\$REPO_PATH/deploy/.env"
           fi
 
-          sed -i "s#^DASHBOARD_BASE_URL=.*#DASHBOARD_BASE_URL=https://\${POD_ID}-8081.proxy.runpod.net#" "\$REPO_PATH/deploy/.env"
-          sed -i "s#^NEXT_PUBLIC_API_URL=.*#NEXT_PUBLIC_API_URL=https://\${POD_ID}-8001.proxy.runpod.net/api#" "\$REPO_PATH/deploy/.env"
+          sed -i "s#^DASHBOARD_BASE_URL=.*#DASHBOARD_BASE_URL=\${DESIRED_DASHBOARD_URL}#" "\$REPO_PATH/deploy/.env"
+          sed -i "s#^NEXT_PUBLIC_API_URL=.*#NEXT_PUBLIC_API_URL=\${DESIRED_API_URL}#" "\$REPO_PATH/deploy/.env"
 
           cd "\$REPO_PATH"
           git fetch origin "\$BRANCH"
