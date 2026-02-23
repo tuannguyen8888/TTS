@@ -49,4 +49,5 @@ jobs:
           "\$REPO_PATH/deploy/runpod-cpu-pod/bootstrap-native.sh" "\$REPO_PATH"
           "\$REPO_PATH/deploy/runpod-cpu-pod/deploy-native.sh" "\$REPO_PATH" "\$BRANCH"
           exit
+          exit
           EOF
