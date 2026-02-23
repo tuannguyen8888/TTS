@@ -19,6 +19,16 @@ git pull --ff-only origin "$BRANCH"
 # shellcheck disable=SC1090
 set -a; source "$ENV_FILE"; set +a
 
+npm_install_cmd() {
+  local dir="$1"
+  cd "$dir"
+  if [[ -f package-lock.json ]]; then
+    npm ci
+  else
+    npm install
+  fi
+}
+
 # Ensure local services are up before app start.
 pg_ctlcluster 14 main start >/dev/null 2>&1 || true
 if ! redis-cli -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1; then
@@ -26,11 +36,11 @@ if ! redis-cli -h 127.0.0.1 -p 6379 ping >/dev/null 2>&1; then
 fi
 
 cd "$REPO_PATH/backend"
-npm ci
+npm_install_cmd "$REPO_PATH/backend"
 npm run build
 
 cd "$REPO_PATH/dashboard"
-npm ci
+npm_install_cmd "$REPO_PATH/dashboard"
 NEXT_PUBLIC_API_URL="$NEXT_PUBLIC_API_URL" npm run build
 
 pm2 delete tts-backend >/dev/null 2>&1 || true
