@@ -41,6 +41,10 @@ jobs:
           REPO_PATH="$REPO_PATH"
           BRANCH="$BRANCH"
           test -f "\$REPO_PATH/deploy/.env" || (echo "Missing deploy/.env on server" && exit 1)
+          cd "\$REPO_PATH"
+          git fetch origin "\$BRANCH"
+          git checkout "\$BRANCH"
+          git pull --ff-only origin "\$BRANCH"
           chmod +x "\$REPO_PATH/deploy/runpod-cpu-pod/"*.sh
           "\$REPO_PATH/deploy/runpod-cpu-pod/bootstrap-native.sh" "\$REPO_PATH"
           "\$REPO_PATH/deploy/runpod-cpu-pod/deploy-native.sh" "\$REPO_PATH" "\$BRANCH"
